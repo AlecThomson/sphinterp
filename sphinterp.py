@@ -6,6 +6,30 @@ import healpy as hp
 from astropy.coordinates import SkyCoord
 import astropy.units as u
 
+from typing import NamedTuple
+
+class ColArrays(NamedTuple):
+    lon_array: np.typing.NDArray[np.floating]
+    lat_array: np.typing.NDArray[np.floating]
+    val_array: np.typing.NDArray[np.floating]
+
+def _cols_to_arrays(
+    cat: pd.DataFrame | Table | pl.DataFrame,
+    interp_column: str,
+    lon_column: str,
+    lat_column: str,   
+) -> ColArrays:
+    if isinstance(cat, Table):
+        return ColArrays(
+            lon_array=cat[lon_column].data,
+            lat_array=cat[lat_column].data,
+            val_array=cat[interp_column].data,
+        )
+    return ColArrays(
+        lon_array=cat[lon_column].to_numpy(),
+        lat_array=cat[lat_column].to_numpy(),
+        val_array=cat[interp_column].to_numpy(),
+    )
 
 def nn_interp_hpx(
     cat: pd.DataFrame | Table | pl.DataFrame,
@@ -15,13 +39,14 @@ def nn_interp_hpx(
     interp_column: str = "rm",
     lon_column: str = "ra",
     lat_column: str = "dec",
+    frame: str = "icrs",
 ) -> np.typing.NDArray[np.floating]:
     """Fast nearest-neighbor interpolation onto a HEALPix grid.
 
     Example usage:
-        >>> my_cat = Table.read("cat.fits") # read data
-        >>> interp_array = nn_interp_hpx(cat=my_cat) # interpolate
-        >>> _ = hp.mollview(interp_array) # plot with healpy
+    >>> my_cat = Table.read("cat.fits") # read data
+    >>> interp_array = nn_interp_hpx(cat=my_cat) # interpolate
+    >>> _ = hp.mollview(interp_array) # plot with healpy
 
     Args:
         cat (pd.DataFrame | Table | pl.DataFrame): Table-like catalogue dataframe
@@ -31,18 +56,21 @@ def nn_interp_hpx(
         interp_column (str, optional): Column to interpolate. Defaults to "rm".
         lon_column (str, optional): Column containing longitude in degrees. Defaults to "ra".
         lat_column (str, optional): Column containing latitude. Defaults to "dec".
+        frame (str, optional): Coordinate frame (e.g. `icrs`, `fk5`, `galactic` etc). Defaults to "icrs".
 
     Returns:
         np.typing.NDArray[np.floating]: Values interpolated onto HEALPix grid
     """
+    col_arrays = _cols_to_arrays(
+        cat=cat,
+        lon_column=lon_column,
+        lat_column=lat_column,
+        interp_column=interp_column,
+    )
 
-    lon_array = np.array(cat[lon_column])
-    lat_array = np.array(cat[lat_column])
-
-    pix_idx = hp.ang2pix(nside, lon_array, lat_array, lonlat=True)
     n_pix = hp.nside2npix(nside)
     interp_arr = np.full(n_pix, np.nan, dtype=float)
-    value_arr = np.array(cat[interp_column])
+
 
     # Fill in missing values with nearest neighbour
     nan_idx = np.isnan(interp_arr)
@@ -50,10 +78,13 @@ def nn_interp_hpx(
     ra_nan, dec_nan = hp.pix2ang(nside, nan_pix, lonlat=True)
     nan_coords = SkyCoord(ra=ra_nan, dec=dec_nan, frame="icrs", unit="deg")
     cat_coords = SkyCoord(
-        ra=cat[lon_column], dec=cat[lat_column], frame="icrs", unit="deg"
+        col_arrays.lon_array, 
+        col_arrays.lat_array, 
+        frame=frame,
+        unit="deg"
     )
     match_idx, _, _ = nan_coords.match_to_catalog_sky(cat_coords)
-    interp_arr[nan_idx] = value_arr[match_idx]
+    interp_arr[nan_idx] = col_arrays.val_array[match_idx]
     _, dec_hpx = hp.pix2ang(nside, np.arange(n_pix), lonlat=True)
     interp_arr[(dec_hpx > upper_lat_limit_deg) | (dec_hpx < lower_lat_limit_deg)] = (
         np.nan
@@ -74,12 +105,12 @@ def idw_interp_hpx(
     search_radius: u.Quantity = 60.0 * u.arcmin,  # type: ignore
     inner_radius: u.Quantity = 0.0 * u.deg,  # type: ignore
 ) -> np.typing.NDArray[np.floating]:
-    """Inverse-square weighted interpolation onto a Healpix grid.
+    """Inverse-square weighted interpolation onto a HEALPix grid.
 
     Example usage:
-        >>> my_cat = Table.read("cat.fits") # read data
-        >>> interp_array = idw_interp_hpx(cat=my_cat) # interpolate
-        >>> _ = hp.mollview(interp_array) # plot with healpy
+    >>> my_cat = Table.read("cat.fits") # read data
+    >>> interp_array = idw_interp_hpx(cat=my_cat) # interpolate
+    >>> _ = hp.mollview(interp_array) # plot with healpy
 
     Args:
         cat (pd.DataFrame | Table | pl.DataFrame): Table-like catalogue dataframe
@@ -100,13 +131,16 @@ def idw_interp_hpx(
     n_pix = hp.nside2npix(nside)
     value_arr = np.full(n_pix, np.nan, dtype=float)
 
-    lon_array = np.array(cat[lon_column])
-    lat_array = np.array(cat[lat_column])
-    value_array = np.array(cat[interp_column])
+    col_arrays = _cols_to_arrays(
+        cat=cat,
+        lon_column=lon_column,
+        lat_column=lat_column,
+        interp_column=interp_column,
+    )
 
     cat_coords = SkyCoord(
-        lon_array,
-        lat_array,
+        col_arrays.lon_array,
+        col_arrays.lat_array,
         frame=frame,
         unit="deg",
     )
@@ -120,7 +154,7 @@ def idw_interp_hpx(
 
     # Inverse square weights
     weights = 1 / d2d.arcminute**2
-    values = value_array[idx_cat]
+    values = col_arrays.val_array[idx_cat]
     # Apply inner radius: set weights to zero for points within inner_radius
     if inner_radius > 0 * u.arcmin:  # type: ignore
         inner_radius = inner_radius.to(u.arcminute).value  # type: ignore
