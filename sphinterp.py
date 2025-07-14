@@ -8,16 +8,18 @@ import astropy.units as u
 
 from typing import NamedTuple
 
+
 class ColArrays(NamedTuple):
     lon_array: np.typing.NDArray[np.floating]
     lat_array: np.typing.NDArray[np.floating]
     val_array: np.typing.NDArray[np.floating]
 
+
 def _cols_to_arrays(
     cat: pd.DataFrame | Table | pl.DataFrame,
     interp_column: str,
     lon_column: str,
-    lat_column: str,   
+    lat_column: str,
 ) -> ColArrays:
     if isinstance(cat, Table):
         return ColArrays(
@@ -30,6 +32,7 @@ def _cols_to_arrays(
         lat_array=cat[lat_column].to_numpy(),
         val_array=cat[interp_column].to_numpy(),
     )
+
 
 def nn_interp_hpx(
     cat: pd.DataFrame | Table | pl.DataFrame,
@@ -71,17 +74,13 @@ def nn_interp_hpx(
     n_pix = hp.nside2npix(nside)
     interp_arr = np.full(n_pix, np.nan, dtype=float)
 
-
     # Fill in missing values with nearest neighbour
     nan_idx = np.isnan(interp_arr)
     nan_pix = np.arange(n_pix)[nan_idx]
     ra_nan, dec_nan = hp.pix2ang(nside, nan_pix, lonlat=True)
     nan_coords = SkyCoord(ra=ra_nan, dec=dec_nan, frame="icrs", unit="deg")
     cat_coords = SkyCoord(
-        col_arrays.lon_array, 
-        col_arrays.lat_array, 
-        frame=frame,
-        unit="deg"
+        col_arrays.lon_array, col_arrays.lat_array, frame=frame, unit="deg"
     )
     match_idx, _, _ = nan_coords.match_to_catalog_sky(cat_coords)
     interp_arr[nan_idx] = col_arrays.val_array[match_idx]
