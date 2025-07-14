@@ -5,9 +5,9 @@ description = "Catalogue interpolation on the sphere with HEALPix"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "astropy>=7.1.0",
-    "healpy>=1.18.1",
-    "numpy>=2.3.1",
-    "pandas>=2.3.1",
-    "polars>=1.31.0",
+    "astropy>=6",
+    "healpy>=1",
+    "numpy>=2",
+    "pandas>=2",
+    "polars>=1.3",
 ]
