@@ -6,6 +6,7 @@ import healpy as hp
 from astropy.coordinates import SkyCoord
 import astropy.units as u
 
+
 def nn_interp_hpx(
     cat: pd.DataFrame | Table | pl.DataFrame,
     nside: int = 512,
@@ -21,7 +22,7 @@ def nn_interp_hpx(
         >>> my_cat = Table.read("cat.fits") # read data
         >>> interp_array = nn_interp_hpx(cat=my_cat) # interpolate
         >>> _ = hp.mollview(interp_array) # plot with healpy
-    
+
     Args:
         cat (pd.DataFrame | Table | pl.DataFrame): Table-like catalogue dataframe
         nside (int, optional): HEALPix Nside. Defaults to 512.
@@ -35,16 +36,10 @@ def nn_interp_hpx(
         np.typing.NDArray[np.floating]: Values interpolated onto HEALPix grid
     """
 
-    lon_array = np.array(
-        cat[lon_column]
-    )
-    lat_array = np.array(
-        cat[lat_column]
-    )
+    lon_array = np.array(cat[lon_column])
+    lat_array = np.array(cat[lat_column])
 
-    pix_idx = hp.ang2pix(
-        nside, lon_array, lat_array, lonlat=True
-    )
+    pix_idx = hp.ang2pix(nside, lon_array, lat_array, lonlat=True)
     n_pix = hp.nside2npix(nside)
     interp_arr = np.full(n_pix, np.nan, dtype=float)
     value_arr = np.array(cat[interp_column])
@@ -61,9 +56,12 @@ def nn_interp_hpx(
     match_idx, _, _ = nan_coords.match_to_catalog_sky(cat_coords)
     interp_arr[nan_idx] = interp_arr[match_idx]
     _, dec_hpx = hp.pix2ang(nside, np.arange(n_pix), lonlat=True)
-    interp_arr[(dec_hpx > upper_lat_limit_deg) | (dec_hpx < lower_lat_limit_deg)] = np.nan
+    interp_arr[(dec_hpx > upper_lat_limit_deg) | (dec_hpx < lower_lat_limit_deg)] = (
+        np.nan
+    )
 
     return interp_arr
+
 
 def idw_interp_hpx(
     cat: pd.DataFrame | Table | pl.DataFrame,
@@ -74,8 +72,8 @@ def idw_interp_hpx(
     lon_column: str = "ra",
     lat_column: str = "dec",
     frame: str = "icrs",
-    search_radius: u.Quantity = 60.0 * u.arcmin, # type: ignore
-    inner_radius: u.Quantity = 0.0 * u.deg, # type: ignore
+    search_radius: u.Quantity = 60.0 * u.arcmin,  # type: ignore
+    inner_radius: u.Quantity = 0.0 * u.deg,  # type: ignore
 ) -> np.typing.NDArray[np.floating]:
     """Inverse-square weighted interpolation onto a Healpix grid.
 
@@ -83,7 +81,7 @@ def idw_interp_hpx(
         >>> my_cat = Table.read("cat.fits") # read data
         >>> interp_array = idw_interp_hpx(cat=my_cat) # interpolate
         >>> _ = hp.mollview(interp_array) # plot with healpy
-    
+
     Args:
         cat (pd.DataFrame | Table | pl.DataFrame): Table-like catalogue dataframe
         nside (int, optional): HEALPix Nside. Defaults to 512.
@@ -103,14 +101,10 @@ def idw_interp_hpx(
     n_pix = hp.nside2npix(nside)
     value_arr = np.full(n_pix, np.nan, dtype=float)
 
-    lon_array = np.array(
-        cat[lon_column]
-    )
-    lat_array = np.array(
-        cat[lat_column]
-    )
+    lon_array = np.array(cat[lon_column])
+    lat_array = np.array(cat[lat_column])
     value_array = np.array(cat[interp_column])
-    
+
     cat_coords = SkyCoord(
         lon_array,
         lat_array,
@@ -129,8 +123,8 @@ def idw_interp_hpx(
     weights = 1 / d2d.arcminute**2
     values = value_array[idx_cat]
     # Apply inner radius: set weights to zero for points within inner_radius
-    if inner_radius > 0 * u.arcmin: # type: ignore
-        inner_radius = inner_radius.to(u.arcminute).value # type: ignore
+    if inner_radius > 0 * u.arcmin:  # type: ignore
+        inner_radius = inner_radius.to(u.arcminute).value  # type: ignore
         weights[d2d.arcminute < inner_radius] = 0
 
     non_nan_idx = np.isfinite(values) & np.isfinite(weights)
@@ -147,6 +141,8 @@ def idw_interp_hpx(
         value_arr = num / den
 
     # Apply declination limits
-    value_arr[(dec_hpx > upper_lat_limit_deg) | (dec_hpx < lower_lat_limit_deg)] = np.nan
+    value_arr[(dec_hpx > upper_lat_limit_deg) | (dec_hpx < lower_lat_limit_deg)] = (
+        np.nan
+    )
 
     return value_arr
