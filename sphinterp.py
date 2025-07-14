@@ -43,7 +43,6 @@ def nn_interp_hpx(
     n_pix = hp.nside2npix(nside)
     interp_arr = np.full(n_pix, np.nan, dtype=float)
     value_arr = np.array(cat[interp_column])
-    interp_arr[pix_idx] = value_arr
 
     # Fill in missing values with nearest neighbour
     nan_idx = np.isnan(interp_arr)
@@ -54,7 +53,7 @@ def nn_interp_hpx(
         ra=cat[lon_column], dec=cat[lat_column], frame="icrs", unit="deg"
     )
     match_idx, _, _ = nan_coords.match_to_catalog_sky(cat_coords)
-    interp_arr[nan_idx] = interp_arr[match_idx]
+    interp_arr[nan_idx] = value_arr[match_idx]
     _, dec_hpx = hp.pix2ang(nside, np.arange(n_pix), lonlat=True)
     interp_arr[(dec_hpx > upper_lat_limit_deg) | (dec_hpx < lower_lat_limit_deg)] = (
         np.nan
