@@ -19,7 +19,7 @@ from sphinterp import nn_interp_hpx
 help(nn_interp_hpx)
 ```
 
-Or, for inverse-distance-squared weigted linear interpolation:
+Or, for inverse-distance-squared weighted linear interpolation:
 
 ```python
 from sphinterp import idw_interp_hpx
